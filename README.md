@@ -51,8 +51,6 @@ DB_NAME=users_db
 DB_COLLECTION_USERS=users
 DB_COLLECTION_REFRESH_TOKENS=refresh_tokens
 JWT_SECRET=supersecretkey
-JWT_EXPIRY=15m
-REFRESH_TOKEN_EXPIRY=168h   # 7 days
 ```
 
 ---
@@ -108,7 +106,7 @@ Make sure MongoDB is running locally or remotely.
 
 ### 4. Start the server
 ```bash
-go run main.go
+go run .
 ```
 
 Server runs by default on:  
