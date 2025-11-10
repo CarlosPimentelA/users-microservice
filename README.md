@@ -1,4 +1,4 @@
-# 🧩 Users Microservice
+# Users Microservice
 
 ![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Database-47A248?logo=mongodb)
@@ -10,7 +10,7 @@ It implements user registration, login, and secure JWT-based authentication with
 
 ---
 
-## 🚀 Features
+## Features
 
 - 🔐 **User registration and login**
 - 🪪 **JWT-based authentication**
@@ -23,7 +23,7 @@ It implements user registration, login, and secure JWT-based authentication with
 
 ---
 
-## 🧠 Architecture Overview
+## Architecture Overview
 
 ```
 users-microservice/
@@ -41,7 +41,7 @@ users-microservice/
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 The `.env` file contains runtime configuration:
 
@@ -55,7 +55,7 @@ JWT_SECRET=supersecretkey
 
 ---
 
-## 🧾 API Endpoints
+## API Endpoints
 
 | Method | Endpoint         | Description               | Body Example |
 |:-------|:-----------------|:--------------------------|:--------------|
@@ -63,11 +63,11 @@ JWT_SECRET=supersecretkey
 | `POST` | `/users/login`    | Authenticate user & get JWT | `{ "email": "john@doe.com", "password": "12345678" }` |
 | `POST` | `/token/refresh`  | Request a new access token  | `{ "jwt": "<token>" }` |
 
-> ⚠️ The refresh token is **managed server-side**, not stored on the client.
+> The refresh token is **managed server-side**, not stored on the client.
 
 ---
 
-## 🔒 Authentication Flow
+## Authentication Flow
 
 1. **User registers** → data is hashed and stored.
 2. **User logs in** → a JWT + refresh token is generated.
@@ -76,7 +76,7 @@ JWT_SECRET=supersecretkey
 
 ---
 
-## 🧰 Technologies
+## Technologies
 
 - [Go](https://go.dev/)
 - [Gin](https://github.com/gin-gonic/gin)
@@ -88,7 +88,7 @@ JWT_SECRET=supersecretkey
 
 ---
 
-## 🧪 Running the Project
+## Running the Project
 
 ### 1. Clone the repo
 ```bash
@@ -110,11 +110,11 @@ go run .
 ```
 
 Server runs by default on:  
-👉 `http://localhost:8080`
+ `http://localhost:8080`
 
 ---
 
-## 🧩 Project Structure Example
+## Project Structure Example
 
 ```
 service/
@@ -130,7 +130,7 @@ handlers/
 
 ---
 
-## 🧑‍💻 Example Request
+## Example Request
 
 ### Login (Postman)
 
@@ -154,7 +154,7 @@ handlers/
 
 ---
 
-## ⚖️ License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
 
@@ -168,7 +168,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy.
 
 ---
 
-## 🧭 Future Improvements
+## Future Improvements
 
 - Add **logout endpoint** (invalidate refresh tokens)
 - Add **unit tests**
@@ -176,7 +176,5 @@ Permission is hereby granted, free of charge, to any person obtaining a copy.
 - Enhance error management
 
 ---
-
-### 🧑‍🏫 Author
 
 Developed by **Carlos Pimentel**  
