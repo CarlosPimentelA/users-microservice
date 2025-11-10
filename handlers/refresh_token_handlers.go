@@ -17,3 +17,5 @@ func NewRefreshTokenHandler(service *service.RefreshTokenService, validator *val
 		Validator: validator,
 	}
 }
+
+// 1. Hacer el endpoint para refrescar automaticamente el jwt del usuario. Handler ‼️

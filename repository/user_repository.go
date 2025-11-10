@@ -13,6 +13,7 @@ import (
 type UserRepository interface {
 	CreateUser(ctx context.Context, user *models.User) error
 	FindUser(ctx context.Context, email string) (*models.User, error)
+	FindUserByID(ctx context.Context, userId string) (*models.User, error)
 	UpdateUser(ctx context.Context, email string, user *models.User) (*models.User, error)
 	DeleteUser(ctx context.Context, email string) error
 	UpdateField(ctx context.Context, email string, newValue interface{}, field string) (*models.User, error)
@@ -20,6 +21,20 @@ type UserRepository interface {
 
 type mongoUserRepository struct {
 	collection *mongo.Collection
+}
+
+// FindUserByID implements UserRepository.
+func (repo *mongoUserRepository) FindUserByID(ctx context.Context, userId string) (*models.User, error) {
+	var user models.User
+	filter := bson.M{"_id": userId}
+	err := repo.collection.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
 }
 
 // UpdateField implements UserRepository.
@@ -70,15 +85,15 @@ func (repo *mongoUserRepository) UpdateUser(ctx context.Context, email string, u
 		LastName:     user.LastName,
 		PasswordHash: user.PasswordHash,
 		UserId:       user.UserId}
-		config := options.FindOneAndReplace().SetReturnDocument(options.After)
+	config := options.FindOneAndReplace().SetReturnDocument(options.After)
 	mongoErr := repo.collection.FindOneAndReplace(ctx, filter, replacement, config).Decode(&userUpdated)
 	if mongoErr != nil {
-		return  nil, mongoErr
+		return nil, mongoErr
 	}
 	return &userUpdated, nil
 }
 
-func (repo *mongoUserRepository) UpdateField( ctx context.Context, email string, newValue interface{}, field string) (*models.User, error) {
+func (repo *mongoUserRepository) UpdateField(ctx context.Context, email string, newValue interface{}, field string) (*models.User, error) {
 	var user models.User
 	filter := bson.M{"email": email}
 	update := bson.M{

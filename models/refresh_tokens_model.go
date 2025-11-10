@@ -5,10 +5,11 @@ import (
 )
 
 type RefreshToken struct {
-	ID        string
-	UserId    string
-	TokenHash string
-	IssuedAt  time.Time
-	Expires time.Time
-	Revoked bool
+	ID             string    `bson:"_id"`
+	UserId         string    `bson:"user_id"`
+	Jti     	   string    `bson:"jti"`
+	IssuedAt       time.Time `bson:"created_at"`
+	Expires        time.Time `bson:"expiry_time"`
+	Revoked        bool      `bson:"revoked"`
+	SessionVersion int       `json:"-" validate:"required" bson:"session"`
 }

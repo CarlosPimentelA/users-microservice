@@ -20,36 +20,40 @@ var ErrUserNotFound = errors.New("user not found")
 var ErrUpdateFailed = errors.New("update failed")
 var ErrInvalidCredencials = errors.New("invalid credencials")
 var ErrInternalServer = errors.New("internal server error")
+
 type UserService struct {
-	userService repository.UserRepository
-	config config.Config
+	userService         repository.UserRepository
+	refreshTokenService *RefreshTokenService
+	config              config.Config
 }
 
 type FieldUpdateFunc func(context.Context, string, string) (*models.User, error)
 
-func NewUserService(userRepo repository.UserRepository, config config.Config) *UserService {
+func NewUserService(userRepo repository.UserRepository, refreshTokenService *RefreshTokenService, config *config.Config) *UserService {
 	return &UserService{
-		userService: userRepo,
-		config: config,
+		userService:         userRepo,
+		refreshTokenService: refreshTokenService,
+		config:              *config,
 	}
 }
 
 func (service *UserService) CreateUserService(ctx context.Context, userDTO *dto.UserDTO) (*dto.UserDTO, error) {
 	passwordHashed, err := bcrypt.GenerateFromPassword([]byte(userDTO.Password), 12)
 	if err != nil {
-		return nil, fmt.Errorf("error: hashing the password: %w", err)		
+		return nil, fmt.Errorf("error: hashing the password: %w", err)
 	}
 	userId, err := uuid.NewRandom()
-	if err != nil{
-		return nil, fmt.Errorf("error: error generating user_id: %w",err)
+	if err != nil {
+		return nil, fmt.Errorf("error: error generating user_id: %w", err)
 	}
-	
+
 	user := models.User{
-		Name: userDTO.Name,
-		LastName: userDTO.LastName,
-		Email: userDTO.Email,
-		UserId: userId.String(),
-		PasswordHash: string(passwordHashed),
+		Name:           userDTO.Name,
+		LastName:       userDTO.LastName,
+		Email:          userDTO.Email,
+		UserId:         userId.String(),
+		PasswordHash:   string(passwordHashed),
+		SessionVersion: 1,
 	}
 
 	duplicateEmail, findErr := service.userService.FindUser(ctx, userDTO.Email)
@@ -67,16 +71,25 @@ func (service *UserService) CreateUserService(ctx context.Context, userDTO *dto.
 }
 
 func (service *UserService) FindUserService(ctx context.Context, email string) (*dto.UserDTO, error) {
-		user, err := service.userService.FindUser(ctx, email)
-		if errors.Is(err, repository.ErrUserNotFound) {
-			return nil, ErrUserNotFound
-		}
-		if err != nil {
-			return nil, fmt.Errorf("error: db error: %w", err)
-		}
-		
-		
-		return mapModelToDTO(user), nil
+	user, err := service.userService.FindUser(ctx, email)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error: db error: %w", err)
+	}
+	return mapModelToDTO(user), nil
+}
+
+func (service *UserService) FindUserByIDService(ctx context.Context, userId string) (*models.User, error) {
+	user, err := service.userService.FindUserByID(ctx, userId)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error: db error: %w", err)
+	}
+	return user, nil
 }
 
 func (service *UserService) UpdateUserService(ctx context.Context, email string, user *models.User) (*dto.UserDTO, error) {
@@ -84,7 +97,7 @@ func (service *UserService) UpdateUserService(ctx context.Context, email string,
 	if err != nil {
 		return nil, fmt.Errorf("error: update error: %w", err)
 	}
-	
+
 	return mapModelToDTO(user), nil
 }
 
@@ -93,7 +106,7 @@ func (service *UserService) DeleteUserService(ctx context.Context, email string)
 	if err != nil {
 		return fmt.Errorf("error: error deleting the user with this email: %s: %w", email, err)
 	}
-		return nil
+	return nil
 }
 
 func (service *UserService) UpdateFieldService(ctx context.Context, email string, newValue string, fieldFunc FieldUpdateFunc, errMessage string) (*dto.UserDTO, error) {
@@ -101,66 +114,75 @@ func (service *UserService) UpdateFieldService(ctx context.Context, email string
 	if err != nil {
 		return nil, fmt.Errorf("error: error modifing the %s: %w", errMessage, err)
 	}
-		return mapModelToDTO(userModified), nil
+	return mapModelToDTO(userModified), nil
 }
 
-func (service *UserService) AuthenticationService(ctx context.Context, email string, password string) (*dto.AuthResponse, error) {
-	user, err := service.userService.FindUser(ctx, email)
-		if errors.Is(err, repository.ErrUserNotFound) {
-			return nil, ErrUserNotFound
-		}
-		if !errors.Is(err, ErrUserNotFound) {
-			return nil, ErrInternalServer
-		}
+func (userService *UserService) AuthenticationService(ctx context.Context, email string, password string) (*dto.AuthResponse, error) {
+	user, err := userService.userService.FindUser(ctx, email)
+	if errors.Is(err, repository.ErrUserNotFound) {
+		return nil, ErrUserNotFound
+	}
+	if !errors.Is(err, ErrUserNotFound) {
+		return nil, ErrInternalServer
+	}
 	credencialErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
 	if credencialErr != nil {
 		return nil, ErrInvalidCredencials
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, 
-        jwt.MapClaims{ 
-        "name": user.Name, 
-		"email": user.Email,
-		"sub": user.UserId,
-		"exp": time.Now().Add(time.Hour * 24).Unix(),
-		"iss": "users-microservice",
-		"iat": time.Now().Unix(),
-		"aud": "contacts-service",
-	})
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"name":  user.Name,
+			"email": user.Email,
+			"sub":   user.UserId,
+			"exp":   time.Now().Add(time.Hour * 24).Unix(),
+			"iss":   "users-microservice",
+			"iat":   time.Now().Unix(),
+			"aud":   "contacts-service",
+		})
 
-	tokenString, signErr := token.SignedString(service.config.JWT_SECRET_KEY)
+	jwtToken, signErr := token.SignedString([]byte(userService.config.JWT_SECRET_KEY))
 	if signErr != nil {
 		return nil, signErr
 	}
 	refreshToken, uuidErr := uuid.NewRandom()
-	/*
-	1. Guardar el refresh token en la db con el servicio de los refresh token.
-	2. Hacer que los usuarios puedan tener varios dispositivos logeados de manera independiente. 
-		- Ejemplo: Si hago log out en mi telefono que mi cuenta en la computadora no haga log out tambien.
-	3. Mejorar los mensajes de error de la parte de los refresh token(repository, service, handlers [cuando haya]) y revisar los mensajes
-	de error que dan los usuarios. 
-	4. Tener los mensajes de error centralizados en la config. 
-		~ Tener los mensajes en un campo que sea error, y que hay esten todas las posibles repuestas de error.
-			- Tener todos los errores divididos en los errores de usuario y los de token.
-			- Tener errores generales para ambos.
-		~ Utilizar esta config en toda la app.
-	*/
+
+	// Guardar el refresh token en la db con el servicio de los refresh token. ✅
+	// Hacer que los usuarios puedan tener varios dispositivos logeados de manera independiente. (La implementacion del modelo hace esta parte) ✅
+	refreshTokenDTO := dto.RefreshTokenCreateDTO{
+		UserId:     user.UserId,
+		Jti: refreshToken.String(),
+		ExpiresAt:  time.Now().Add(userService.config.REFRESH_TOKEN_CONFIG.EXPIRY_TIME),
+	}
+	refreshTokenErr := userService.refreshTokenService.CreateRefreshTokenService(ctx, &refreshTokenDTO)
+	if refreshTokenErr != nil {
+		return nil, refreshTokenErr
+	}
+
+	// 1. Mejorar los mensajes de error de la parte de los refresh token (repository, service, handlers cuando haya) y revisar los mensajes
+	//    de error que dan los usuarios.
+	// 2. Tener los mensajes de error centralizados en la config.
+	//	~ Tener los mensajes en un campo que sea error, y que hay esten todas las posibles repuestas de error.
+	//		* Tener todos los errores divididos en los errores de usuario y los de token.
+	//		* Tener errores generales para ambos.
+	//	~ Utilizar esta config en toda la app.
+
 	if uuidErr != nil {
 		return nil, uuidErr
 	}
 	response := dto.AuthResponse{
 		UserId: user.UserId,
-		Name: user.Name,
-		Email: email,
-		JWT: tokenString,
+		Name:   user.Name,
+		Email:  email,
+		JWT:    jwtToken,
 	}
 	return &response, nil
 }
 
 func mapModelToDTO(model *models.User) *dto.UserDTO {
 	var userDTO = dto.UserDTO{
-		Name: model.Name,
+		Name:     model.Name,
 		LastName: model.LastName,
-		Email: model.Email,
+		Email:    model.Email,
 		Password: model.PasswordHash,
 	}
 	return &userDTO

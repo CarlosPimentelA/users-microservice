@@ -15,18 +15,18 @@ import (
 )
 
 type UserHandler struct {
-	Service *service.UserService
+	Service   *service.UserService
 	Validator *validator.Validate
 }
 
 func NewUserHandler(service *service.UserService, validator *validator.Validate) *UserHandler {
 	return &UserHandler{
-		Service: service,
+		Service:   service,
 		Validator: validator,
-}
+	}
 }
 
-func SetupRoutes(g *gin.Engine, userHandler *UserHandler, refreshTokenHandler *RefreshTokenHandler)  {
+func SetupRoutes(g *gin.Engine, userHandler *UserHandler, refreshTokenHandler *RefreshTokenHandler) {
 	userPath := g.Group("/users")
 	{
 		userPath.POST("", userHandler.HandleCreateUser)
@@ -41,10 +41,10 @@ func (handler *UserHandler) HandleCreateUser(gc *gin.Context) {
 	err := gc.BindJSON(newUser)
 	if err != nil {
 		gc.JSON(http.StatusBadRequest, gin.H{
-    "status": http.StatusBadRequest,
-    "error": "BAD_REQUEST",
-    "message": err.Error(), 
-	})
+			"status":  http.StatusBadRequest,
+			"error":   "BAD_REQUEST",
+			"message": err.Error(),
+		})
 		return
 	}
 	validationErr := handler.Validator.Struct(newUser)
@@ -57,10 +57,10 @@ func (handler *UserHandler) HandleCreateUser(gc *gin.Context) {
 				errorMessage = append(errorMessage, message)
 			}
 			gc.JSON(http.StatusBadRequest, gin.H{
-					"status": http.StatusBadRequest,
-					"error": "VALIDATION_FAILED",
-					"error_details": errorMessage,
-				})
+				"status":        http.StatusBadRequest,
+				"error":         "VALIDATION_FAILED",
+				"error_details": errorMessage,
+			})
 			return
 		}
 		return
@@ -69,10 +69,10 @@ func (handler *UserHandler) HandleCreateUser(gc *gin.Context) {
 	if serviceErr != nil {
 		statusCode, errorMessage := MapErrorToHttp(serviceErr)
 		gc.JSON(statusCode, gin.H{
-    "status": statusCode,
-    "error": http.StatusText(statusCode),
-    "message": errorMessage, 
-	})
+			"status":  statusCode,
+			"error":   http.StatusText(statusCode),
+			"message": errorMessage,
+		})
 		return
 	}
 	gc.JSON(http.StatusCreated, userDTO)
@@ -82,8 +82,8 @@ func (handler *UserHandler) HandleLoginUser(gc *gin.Context) {
 
 }
 
-func MapErrorToHttp(err error) (int, string)  {
-	if errors.Is(err, service.ErrUserNotFound)  {
+func MapErrorToHttp(err error) (int, string) {
+	if errors.Is(err, service.ErrUserNotFound) {
 		return http.StatusNotFound, "The requested resource was not found."
 	}
 	if errors.Is(err, service.ErrUpdateFailed) {
@@ -97,17 +97,17 @@ func MapErrorToHttp(err error) (int, string)  {
 }
 
 func translateFieldErr(fe validator.FieldError) string {
-fieldName := strings.ToLower(fe.Field())
-    switch fe.Tag() {
-    case "required":
-        return fmt.Sprintf("El campo %s es obligatorio.", fieldName)
-    case "email":
-        return fmt.Sprintf("El campo %s debe ser una dirección de email válida.", fieldName)
-    case "min":
-        return fmt.Sprintf("El campo %s debe tener un mínimo de %s caracteres.", fieldName, fe.Param())
-    case "max":
-        return fmt.Sprintf("El campo %s no debe exceder los %s caracteres.", fieldName, fe.Param())
-    default:
-        return fmt.Sprintf("El campo %s falló la validación.", fieldName)
-    }
+	fieldName := strings.ToLower(fe.Field())
+	switch fe.Tag() {
+	case "required":
+		return fmt.Sprintf("El campo %s es obligatorio.", fieldName)
+	case "email":
+		return fmt.Sprintf("El campo %s debe ser una dirección de email válida.", fieldName)
+	case "min":
+		return fmt.Sprintf("El campo %s debe tener un mínimo de %s caracteres.", fieldName, fe.Param())
+	case "max":
+		return fmt.Sprintf("El campo %s no debe exceder los %s caracteres.", fieldName, fe.Param())
+	default:
+		return fmt.Sprintf("El campo %s falló la validación.", fieldName)
+	}
 }
