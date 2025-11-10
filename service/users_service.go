@@ -10,7 +10,6 @@ import (
 	"users-microservice/models"
 	"users-microservice/repository"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -119,30 +118,19 @@ func (service *UserService) UpdateFieldService(ctx context.Context, email string
 
 func (userService *UserService) AuthenticationService(ctx context.Context, email string, password string) (*dto.AuthResponse, error) {
 	user, err := userService.userService.FindUser(ctx, email)
+	if err != nil {
 	if errors.Is(err, repository.ErrUserNotFound) {
 		return nil, ErrUserNotFound
 	}
-	if !errors.Is(err, ErrUserNotFound) {
-		return nil, ErrInternalServer
-	}
+	return nil, ErrInternalServer
+}
 	credencialErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
 	if credencialErr != nil {
 		return nil, ErrInvalidCredencials
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
-		jwt.MapClaims{
-			"name":  user.Name,
-			"email": user.Email,
-			"sub":   user.UserId,
-			"exp":   time.Now().Add(time.Hour * 24).Unix(),
-			"iss":   "users-microservice",
-			"iat":   time.Now().Unix(),
-			"aud":   "contacts-service",
-		})
-
-	jwtToken, signErr := token.SignedString([]byte(userService.config.JWT_SECRET_KEY))
-	if signErr != nil {
-		return nil, signErr
+	token, createJwtErr := createJwtToken(user, userService.refreshTokenService)
+	if createJwtErr != nil {
+		return nil, nil
 	}
 	refreshToken, uuidErr := uuid.NewRandom()
 
@@ -173,7 +161,7 @@ func (userService *UserService) AuthenticationService(ctx context.Context, email
 		UserId: user.UserId,
 		Name:   user.Name,
 		Email:  email,
-		JWT:    jwtToken,
+		JWT:    token,
 	}
 	return &response, nil
 }

@@ -19,9 +19,9 @@ type UserHandler struct {
 	Validator *validator.Validate
 }
 
-func NewUserHandler(service *service.UserService, validator *validator.Validate) *UserHandler {
+func NewUserHandler(userService *service.UserService, validator *validator.Validate, refreshTokenService *service.RefreshTokenService) *UserHandler {
 	return &UserHandler{
-		Service:   service,
+		Service:   userService,
 		Validator: validator,
 	}
 }
@@ -31,6 +31,10 @@ func SetupRoutes(g *gin.Engine, userHandler *UserHandler, refreshTokenHandler *R
 	{
 		userPath.POST("", userHandler.HandleCreateUser)
 		userPath.POST("/login", userHandler.HandleLoginUser)
+	}
+	refreshTokenPath := g.Group("refresh")
+	{
+		refreshTokenPath.POST("", refreshTokenHandler.HandleRefreshToken)
 	}
 }
 
@@ -79,7 +83,40 @@ func (handler *UserHandler) HandleCreateUser(gc *gin.Context) {
 }
 
 func (handler *UserHandler) HandleLoginUser(gc *gin.Context) {
-
+	ctx, cancel := context.WithTimeout(gc.Request.Context(), 10*time.Second)
+	defer cancel()
+	newLogin := new(dto.LoginRequestDTO)
+	err := gc.BindJSON(newLogin)
+	if err != nil {
+		gc.JSON(http.StatusBadRequest, gin.H{
+			"status":  http.StatusBadRequest,
+			"error":   "BAD_REQUEST",
+			"message": err.Error(),
+		})
+		return
+	}
+	validationErr := handler.Validator.Struct(newLogin)
+	if validationErr != nil {
+		if validateError, ok := validationErr.(validator.ValidationErrors); ok {
+			gc.JSON(http.StatusBadRequest, gin.H{
+				"status":        http.StatusBadRequest,
+				"error":         "INVALID_CREDENTIALS",
+				"error_details": validateError,
+			})
+			return
+		}
+		return
+	}
+	jwt, authErr := handler.Service.AuthenticationService(ctx, newLogin.Email, newLogin.Password)
+	if authErr != nil {
+		gc.JSON(http.StatusBadRequest, gin.H{
+			"status":  http.StatusBadRequest,
+			"error":   http.StatusText(http.StatusBadRequest),
+			"message": authErr,
+		})
+		return
+	}
+	gc.JSON(http.StatusCreated, jwt)
 }
 
 func MapErrorToHttp(err error) (int, string) {
@@ -92,7 +129,9 @@ func MapErrorToHttp(err error) (int, string) {
 	if errors.Is(err, service.ErrEmailConflict) {
 		return http.StatusConflict, "This email is already registered"
 	}
-
+	if errors.Is(err, service.ErrInvalidCredencials) {
+		return http.StatusBadRequest, "Invalid credentials"
+	}
 	return http.StatusInternalServerError, "An unexpected error occurred on the server."
 }
 

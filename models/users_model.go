@@ -6,5 +6,5 @@ type User struct {
 	LastName       string `json:"lastname" validate:"required" bson:"last_name"`
 	Email          string `json:"email" validate:"required,email" bson:"email"`
 	PasswordHash   string `json:"-" validate:"required" bson:"password_hash"`
-	SessionVersion int    `json:"-" validate:"required" bson:"session"`
+	SessionVersion int    `json:"sessions" validate:"required" bson:"sessions"`
 }
